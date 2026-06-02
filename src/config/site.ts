@@ -1,0 +1,41 @@
+// ─────────────────────────────────────────────────────────────────────────
+//  EDIT ME — this is the one place to change shop-wide settings.
+//  (Brand name, contact details, social links, shipping rules.)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const SITE = {
+  /** Shop name shown in the header, page titles, and emails. */
+  name: "SR Jewellers",
+  /** Short tagline under the logo / in the hero. */
+  tagline: "Delicate Korean jewellery, delivered across India",
+  /** One-line description for SEO / social previews. */
+  description:
+    "Hand-picked Korean-style jewellery — earrings, necklaces, rings and more. Shipped across India with love.",
+
+  /** Customer-facing contact details (shown in footer + policies). */
+  email: "hello@seoulsparkle.in",
+  phone: "+91 98765 43210",
+  whatsapp: "919876543210", // digits only, country code first
+
+  /** Social links — leave blank ("") to hide an icon. */
+  instagram: "https://instagram.com/",
+  facebook: "https://facebook.com/marketplace/",
+
+  /** Money. Everything internally is stored in paise (₹1 = 100 paise). */
+  currency: "INR",
+  locale: "en-IN",
+
+  /**
+   * Shipping. Orders at/above the free-shipping threshold ship free,
+   * otherwise a flat fee applies. All values in paise.
+   */
+  freeShippingThresholdPaise: 99900, // ₹999
+  flatShippingPaise: 6900, // ₹69
+
+  /** Public base URL — set NEXT_PUBLIC_SITE_URL in production (Vercel). */
+  get url() {
+    return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  },
+} as const;
+
+export type Site = typeof SITE;

@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────────────────────────────
+   Theme — warm & feminine. Soft blush + cream backgrounds, rosy-mauve
+   primary, antique-gold accents, deep plum ink for text. Elegant serif
+   headings (Cormorant) over a soft, rounded sans (Nunito).
+   ─────────────────────────────────────────────────────────────────────── */
+@theme {
+  --font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+
+  --color-cream: #fff8f4;
+  --color-blush: #fbeceb;
+  --color-blush-deep: #f6dcd9;
+  --color-brand: #c96b86;
+  --color-brand-dark: #a94e69;
+  --color-brand-light: #e9a7b8;
+  --color-gold: #c19a45;
+  --color-gold-dark: #a07e2f;
+  --color-ink: #46303a;
+  --color-muted: #9b8388;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Headings default to the serif display face. */
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-serif);
+  letter-spacing: 0.01em;
+}
+
+/* Thin gold divider used between sections. */
+.gold-rule {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-gold) 50%,
+    transparent
+  );
+}
+
+/* Subtle entrance animation for product cards / sections. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}

@@ -1,0 +1,117 @@
+// Korean jewellery store — data model.
+// NOTE: On this machine direct Postgres (port 5432) is broken, so we never run
+// `prisma migrate`/`db push`. Schema is applied over Neon's HTTPS/WebSocket
+// driver via `npm run db:setup` (scripts/setup-db.mjs). See README.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  position  Int       @default(0)
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id           String         @id @default(cuid())
+  name         String
+  slug         String         @unique
+  description  String         @default("") // short marketing blurb
+  details      String         @default("") // material / size / care, shown in accordion
+  pricePaise   Int // selling price, stored in paise (₹1 = 100 paise)
+  comparePaise Int? // optional "was" price to show a discount
+  stock        Int            @default(0)
+  isActive     Boolean        @default(true)
+  isFeatured   Boolean        @default(false)
+  categoryId   String?
+  category     Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images       ProductImage[]
+  orderItems   OrderItem[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  publicId  String  @default("") // Cloudinary public_id, used to delete the asset
+  alt       String  @default("")
+  position  Int     @default(0)
+
+  @@index([productId])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  orderNumber       String      @unique
+  status            OrderStatus @default(PENDING)
+  // Customer + shipping (snapshot at checkout time)
+  customerName      String
+  email             String
+  phone             String
+  addressLine1      String
+  addressLine2      String      @default("")
+  city              String
+  state             String
+  pincode           String
+  notes             String      @default("")
+  // Money, all in paise
+  subtotalPaise     Int
+  shippingPaise     Int         @default(0)
+  totalPaise        Int
+  // Razorpay
+  razorpayOrderId   String?     @unique
+  razorpayPaymentId String?
+  paidAt            DateTime?
+  items             OrderItem[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String?
+  product    Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name       String // snapshot of product name
+  pricePaise Int // snapshot of unit price
+  quantity   Int
+  imageUrl   String   @default("")
+
+  @@index([orderId])
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  createdAt    DateTime @default(now())
+}
+
+enum OrderStatus {
+  PENDING // created, awaiting payment
+  PAID // payment captured
+  PROCESSING // being packed
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
