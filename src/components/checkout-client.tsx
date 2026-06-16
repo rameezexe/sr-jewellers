@@ -312,6 +312,15 @@ function UpiPanel({
   onCopy: () => void;
   inputClass: string;
 }) {
+  async function pasteReference() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setReference(text.trim());
+    } catch {
+      /* clipboard blocked — they can paste/type manually */
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -363,15 +372,25 @@ function UpiPanel({
           <span className="mb-1 block text-sm font-medium text-ink">
             UPI reference / UTR number <span className="text-brand">*</span>
           </span>
-          <input
-            className={inputClass}
-            required
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="e.g. 412345678901"
-          />
+          <div className="flex gap-2">
+            <input
+              className={`${inputClass} flex-1`}
+              required
+              autoFocus
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. 412345678901"
+            />
+            <button
+              type="button"
+              onClick={pasteReference}
+              className="shrink-0 rounded-lg border border-blush-deep px-4 text-sm font-medium text-ink hover:bg-blush"
+            >
+              Paste
+            </button>
+          </div>
           <span className="mt-1 block text-xs text-muted">
-            You&apos;ll find this in your UPI app after the payment succeeds.
+            Copy it from your UPI app, then tap <strong>Paste</strong>.
           </span>
         </label>
 

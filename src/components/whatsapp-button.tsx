@@ -1,4 +1,5 @@
 import { SITE } from "@/config/site";
+import { whatsappLink } from "@/lib/utils";
 import { WhatsAppIcon } from "@/components/social-icons";
 
 /**
@@ -9,7 +10,7 @@ export function WhatsAppButton() {
   if (!SITE.whatsapp) return null;
   return (
     <a
-      href={`https://wa.me/${SITE.whatsapp}`}
+      href={whatsappLink()}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat with us on WhatsApp"

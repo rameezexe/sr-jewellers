@@ -16,6 +16,8 @@ export const SITE = {
   email: "srashaikh92@gmail.com",
   phone: "+91 91676 08665",
   whatsapp: "919167608665", // digits only, country code first
+  /** Pre-typed message that opens in WhatsApp when a customer taps "Chat". */
+  whatsappMessage: "Hi SR Jewellers! 💕 I have a question about your jewellery.",
 
   /** Social links — leave blank ("") to hide an icon. */
   instagram: "https://instagram.com/s_r.jewellery",

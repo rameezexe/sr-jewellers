@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { InstagramIcon, FacebookIcon } from "@/components/social-icons";
 import { SITE } from "@/config/site";
+import { whatsappLink } from "@/lib/utils";
 
 export function Footer() {
   return (
@@ -99,7 +100,7 @@ export function Footer() {
             {SITE.whatsapp && (
               <li>
                 <a
-                  href={`https://wa.me/${SITE.whatsapp}`}
+                  href={whatsappLink()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-brand"

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SITE } from "@/config/site";
+import { whatsappLink } from "@/lib/utils";
 import { InstagramIcon, FacebookIcon } from "@/components/social-icons";
 
 export const metadata: Metadata = {
@@ -8,9 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default function ContactPage() {
-  const waLink = SITE.whatsapp
-    ? `https://wa.me/${SITE.whatsapp}`
-    : null;
+  const waLink = SITE.whatsapp ? whatsappLink() : null;
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
