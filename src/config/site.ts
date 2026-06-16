@@ -13,7 +13,7 @@ export const SITE = {
     "Hand-picked Korean-style jewellery — earrings, necklaces, rings and more. Shipped across India with love.",
 
   /** Customer-facing contact details (shown in footer + policies). */
-  email: "srashaikh91@gmail.com",
+  email: "srashaikh92@gmail.com",
   phone: "+91 91676 08665",
   whatsapp: "919167608665", // digits only, country code first
 

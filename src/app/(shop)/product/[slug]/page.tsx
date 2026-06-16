@@ -4,7 +4,9 @@ import type { Metadata } from "next";
 import { getProductBySlug } from "@/lib/queries";
 import { ProductGallery } from "@/components/product-gallery";
 import { AddToCart } from "@/components/add-to-cart";
+import { ShareButton } from "@/components/share-button";
 import { formatPaise } from "@/lib/money";
+import { getShopSettings } from "@/lib/settings";
 
 export async function generateMetadata({
   params,
@@ -32,6 +34,8 @@ export default async function ProductPage({
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
+
+  const { freeShippingThresholdPaise } = await getShopSettings();
 
   const onSale =
     product.comparePaise != null && product.comparePaise > product.pricePaise;
@@ -120,6 +124,8 @@ export default async function ProductPage({
             />
           </div>
 
+          <ShareButton title={product.name} />
+
           {product.details && (
             <div className="mt-8 border-t border-blush-deep/60 pt-6">
               <h2 className="font-display text-xl text-ink">Details &amp; care</h2>
@@ -130,7 +136,11 @@ export default async function ProductPage({
           )}
 
           <div className="mt-6 space-y-1 text-sm text-muted">
-            <p>✦ Free shipping on orders over ₹999</p>
+            {freeShippingThresholdPaise > 0 ? (
+              <p>✦ Free shipping on orders over {formatPaise(freeShippingThresholdPaise)}</p>
+            ) : (
+              <p>✦ Free shipping on all orders</p>
+            )}
             <p>✦ Carefully packed &amp; shipped across India</p>
           </div>
         </div>

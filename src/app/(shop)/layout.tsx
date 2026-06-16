@@ -3,6 +3,7 @@ import { ShopSettingsProvider } from "@/components/shop-settings-context";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { CartDrawer } from "@/components/cart-drawer";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { getShopSettings } from "@/lib/settings";
 
 /**
@@ -23,6 +24,7 @@ export default async function ShopLayout({
         <main className="flex-1">{children}</main>
         <Footer />
         <CartDrawer />
+        <WhatsAppButton />
       </CartProvider>
     </ShopSettingsProvider>
   );
