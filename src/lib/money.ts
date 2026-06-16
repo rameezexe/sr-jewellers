@@ -2,7 +2,7 @@ import { SITE } from "@/config/site";
 
 /**
  * Money helpers. We always store amounts as integer **paise** to avoid
- * floating-point rounding bugs (₹1 = 100 paise). Razorpay also expects paise.
+ * floating-point rounding bugs (₹1 = 100 paise).
  */
 
 const formatter = new Intl.NumberFormat(SITE.locale, {

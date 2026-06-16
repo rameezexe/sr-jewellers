@@ -72,9 +72,9 @@ model Order {
   subtotalPaise     Int
   shippingPaise     Int         @default(0)
   totalPaise        Int
-  // Razorpay
-  razorpayOrderId   String?     @unique
-  razorpayPaymentId String?
+  // Payment — "UPI" (customer pays to our UPI ID/QR) or "COD" (cash on delivery)
+  paymentMethod     String      @default("UPI")
+  paymentRef        String      @default("") // UPI reference/UTR the customer enters
   paidAt            DateTime?
   items             OrderItem[]
   createdAt         DateTime    @default(now())

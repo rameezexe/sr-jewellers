@@ -130,12 +130,20 @@ export default async function AdminOrderDetailPage({
           <div className="rounded-xl border border-blush-deep/60 bg-white p-5 text-sm">
             <h2 className="font-display text-lg text-ink">Payment</h2>
             <p className="mt-2 text-muted">
-              Razorpay order:{" "}
-              <span className="text-ink">{order.razorpayOrderId ?? "—"}</span>
+              Method:{" "}
+              <span className="text-ink">
+                {order.paymentMethod === "COD" ? "Cash on Delivery" : "UPI"}
+              </span>
               <br />
-              Payment id:{" "}
-              <span className="text-ink">{order.razorpayPaymentId ?? "—"}</span>
-              <br />
+              {order.paymentMethod === "UPI" && (
+                <>
+                  UPI reference:{" "}
+                  <span className="text-ink">
+                    {order.paymentRef || "— (not submitted yet)"}
+                  </span>
+                  <br />
+                </>
+              )}
               Paid:{" "}
               <span className="text-ink">
                 {order.paidAt
@@ -146,6 +154,13 @@ export default async function AdminOrderDetailPage({
                   : "Not yet"}
               </span>
             </p>
+            {order.paymentMethod === "UPI" && order.status === "PENDING" && (
+              <p className="mt-3 rounded-lg bg-gold/10 p-2 text-xs text-gold-dark">
+                Check your bank/UPI app for {formatPaise(order.totalPaise)}
+                {order.paymentRef ? ` (ref ${order.paymentRef})` : ""}, then set
+                the status to <strong>PAID</strong> above.
+              </p>
+            )}
           </div>
         </div>
       </div>

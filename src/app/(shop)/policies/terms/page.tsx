@@ -21,9 +21,10 @@ export default function TermsPage() {
       </p>
       <h2>Orders &amp; payment</h2>
       <p>
-        Payments are processed securely through Razorpay. We reserve the right
-        to cancel any order in case of suspected fraud, pricing errors, or stock
-        unavailability — in which case any amount paid will be refunded in full.
+        You may pay by UPI or by Cash on Delivery. UPI payments are confirmed
+        manually once received. We reserve the right to cancel any order in case
+        of suspected fraud, pricing errors, or stock unavailability — in which
+        case any amount already paid will be refunded in full.
       </p>
       <h2>Intellectual property</h2>
       <p>

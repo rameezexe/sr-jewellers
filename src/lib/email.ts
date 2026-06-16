@@ -1,18 +1,20 @@
 import "server-only";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { SITE } from "@/config/site";
 import { formatPaise } from "@/lib/money";
 
 /**
- * Transactional email via Resend. Two emails fire when an order is paid:
+ * Transactional email via the shop owner's Gmail (an "app password", not her
+ * real password). Two emails fire per order:
  *   1. Confirmation to the customer.
- *   2. "New order!" alert to the shop owner (your mom) so she can ship it.
+ *   2. "New order!" alert to the owner so she can pack & ship it.
  *
- * If RESEND_API_KEY is missing we just log and no-op, so local dev still works.
+ * If Gmail credentials are missing we just log and no-op, so local dev still
+ * works. Set GMAIL_USER + GMAIL_APP_PASSWORD in .env (see README).
  */
 
 function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+  return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 }
 
 type OrderForEmail = {
@@ -26,6 +28,8 @@ type OrderForEmail = {
   state: string;
   pincode: string;
   notes: string;
+  paymentMethod: string;
+  paymentRef: string;
   subtotalPaise: number;
   shippingPaise: number;
   totalPaise: number;
@@ -64,6 +68,32 @@ function shippingBlock(order: OrderForEmail): string {
     📞 ${order.phone}${order.notes ? `<br/><em>Note: ${order.notes}</em>` : ""}`;
 }
 
+/** Human-readable payment line for the customer's email. */
+function customerPaymentLine(order: OrderForEmail): string {
+  if (order.paymentMethod === "COD") {
+    return `<p style="font-size:14px;"><strong>Payment:</strong> Cash on Delivery — please keep ${formatPaise(
+      order.totalPaise,
+    )} ready when your parcel arrives.</p>`;
+  }
+  return `<p style="font-size:14px;"><strong>Payment:</strong> UPI${
+    order.paymentRef ? ` (ref ${order.paymentRef})` : ""
+  } — we'll confirm it landed in our account and update your order shortly.</p>`;
+}
+
+/** Payment line for the owner alert. */
+function ownerPaymentLine(order: OrderForEmail): string {
+  if (order.paymentMethod === "COD") {
+    return `<p style="font-size:14px;"><strong>Payment:</strong> Cash on Delivery — collect ${formatPaise(
+      order.totalPaise,
+    )} on delivery.</p>`;
+  }
+  return `<p style="font-size:14px;"><strong>Payment:</strong> UPI — customer reference <strong>${
+    order.paymentRef || "—"
+  }</strong>. Check your bank/UPI app for ${formatPaise(
+    order.totalPaise,
+  )}, then mark the order PAID in admin.</p>`;
+}
+
 function shell(title: string, body: string): string {
   return `<div style="font-family:Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#3e2a2e;">
     <h1 style="font-size:22px;color:#c96b86;">${SITE.name}</h1>
@@ -75,18 +105,28 @@ function shell(title: string, body: string): string {
 
 export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
   if (!emailConfigured()) {
-    console.warn("[email] RESEND_API_KEY missing — skipping emails for", order.orderNumber);
+    console.warn(
+      "[email] GMAIL_USER/GMAIL_APP_PASSWORD missing — skipping emails for",
+      order.orderNumber,
+    );
     return;
   }
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const from = process.env.EMAIL_FROM ?? `${SITE.name} <onboarding@resend.dev>`;
-  const ownerEmail = process.env.OWNER_EMAIL ?? SITE.email;
+
+  const gmailUser = process.env.GMAIL_USER!;
+  const from = process.env.EMAIL_FROM || `${SITE.name} <${gmailUser}>`;
+  const ownerEmail = process.env.OWNER_EMAIL || gmailUser;
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: gmailUser, pass: process.env.GMAIL_APP_PASSWORD },
+  });
 
   // Customer confirmation
   const customerHtml = shell(
     `Thank you for your order, ${order.customerName.split(" ")[0]}! 💕`,
     `<p>We've received your order <strong>${order.orderNumber}</strong> and we're getting it ready to ship.</p>
      ${itemsTable(order)}
+     ${customerPaymentLine(order)}
      <h3 style="font-size:15px;margin-top:20px;">Shipping to</h3>
      <p style="font-size:14px;">${shippingBlock(order)}</p>`,
   );
@@ -94,8 +134,9 @@ export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
   // Owner alert
   const ownerHtml = shell(
     `🛍️ New order ${order.orderNumber}`,
-    `<p>You've got a new paid order — time to pack and ship!</p>
+    `<p>You've got a new order — time to pack and ship!</p>
      ${itemsTable(order)}
+     ${ownerPaymentLine(order)}
      <h3 style="font-size:15px;margin-top:20px;">Ship to</h3>
      <p style="font-size:14px;">${shippingBlock(order)}</p>
      <p style="font-size:14px;">Customer email: ${order.email}</p>`,
@@ -103,13 +144,13 @@ export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
 
   try {
     await Promise.all([
-      resend.emails.send({
+      transporter.sendMail({
         from,
         to: order.email,
         subject: `Order confirmed — ${order.orderNumber}`,
         html: customerHtml,
       }),
-      resend.emails.send({
+      transporter.sendMail({
         from,
         to: ownerEmail,
         subject: `New order ${order.orderNumber} — ${formatPaise(order.totalPaise)}`,
@@ -117,7 +158,7 @@ export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
       }),
     ]);
   } catch (err) {
-    // Never let an email failure break the payment flow.
+    // Never let an email failure break the order flow.
     console.error("[email] send failed for", order.orderNumber, err);
   }
 }

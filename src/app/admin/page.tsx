@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatPaise } from "@/lib/money";
-import { razorpayConfigured } from "@/lib/razorpay";
+import { upiConfigured } from "@/lib/payments";
 import { cloudinaryConfigured } from "@/lib/cloudinary";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +29,12 @@ export default async function AdminDashboard() {
     ]);
 
   const setupItems = [
-    { label: "Razorpay payments", ok: razorpayConfigured() },
+    { label: "UPI payments", ok: upiConfigured() },
     { label: "Cloudinary photos", ok: cloudinaryConfigured() },
-    { label: "Resend emails", ok: Boolean(process.env.RESEND_API_KEY) },
+    {
+      label: "Gmail emails",
+      ok: Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD),
+    },
   ];
   const setupIncomplete = setupItems.some((s) => !s.ok);
 

@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createPendingOrder } from "@/lib/orders";
-import { getRazorpay, razorpayConfigured, publicKeyId } from "@/lib/razorpay";
-import { prisma } from "@/lib/prisma";
-import { SITE } from "@/config/site";
+import {
+  upiConfigured,
+  upiId,
+  buildUpiLink,
+  buildUpiQrDataUrl,
+} from "@/lib/payments";
 
 const schema = z.object({
+  paymentMethod: z.enum(["UPI", "COD"]),
   items: z
     .array(
       z.object({
@@ -28,13 +32,6 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (!razorpayConfigured()) {
-    return NextResponse.json(
-      { error: "Online payments aren't set up yet. Please contact us to order." },
-      { status: 503 },
-    );
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -48,40 +45,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: first }, { status: 400 });
   }
 
-  try {
-    const order = await createPendingOrder(
-      parsed.data.items,
-      parsed.data.customer,
+  const { paymentMethod, items, customer } = parsed.data;
+
+  if (paymentMethod === "UPI" && !upiConfigured()) {
+    return NextResponse.json(
+      { error: "UPI isn't set up yet. Please choose Cash on Delivery." },
+      { status: 503 },
     );
+  }
 
-    // Create the matching Razorpay order.
-    const razorpay = getRazorpay();
-    const rzpOrder = await razorpay.orders.create({
-      amount: order.totalPaise,
-      currency: SITE.currency,
-      receipt: order.orderNumber,
-      notes: { orderNumber: order.orderNumber },
-    });
+  try {
+    const order = await createPendingOrder(items, customer, paymentMethod);
 
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { razorpayOrderId: rzpOrder.id },
-    });
+    if (paymentMethod === "COD") {
+      return NextResponse.json({
+        method: "COD",
+        orderNumber: order.orderNumber,
+        amountPaise: order.totalPaise,
+      });
+    }
 
+    // UPI — return the deep link + a scannable QR so the customer can pay.
+    const upiLink = buildUpiLink(order.totalPaise, order.orderNumber);
+    const qrDataUrl = await buildUpiQrDataUrl(upiLink);
     return NextResponse.json({
-      keyId: publicKeyId(),
-      razorpayOrderId: rzpOrder.id,
-      amountPaise: order.totalPaise,
+      method: "UPI",
       orderNumber: order.orderNumber,
-      prefill: {
-        name: order.customerName,
-        email: order.email,
-        contact: order.phone,
-      },
+      amountPaise: order.totalPaise,
+      upiId: upiId(),
+      upiLink,
+      qrDataUrl,
     });
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Could not start checkout.";
+      err instanceof Error ? err.message : "Could not place your order.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

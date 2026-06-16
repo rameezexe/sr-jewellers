@@ -19,8 +19,9 @@ export default function PrivacyPage() {
       </p>
       <h2>Payments</h2>
       <p>
-        Payments are handled by Razorpay. We do not store your card or banking
-        details on our servers — these are processed securely by Razorpay.
+        You can pay by UPI or choose Cash on Delivery. We never see or store
+        your card, UPI PIN, or banking credentials — UPI payments are made
+        directly from your own banking app to ours.
       </p>
       <h2>How we use your information</h2>
       <p>

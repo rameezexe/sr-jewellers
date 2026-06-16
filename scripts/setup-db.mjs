@@ -83,8 +83,8 @@ const TABLES = [
     "subtotalPaise" INTEGER NOT NULL,
     "shippingPaise" INTEGER NOT NULL DEFAULT 0,
     "totalPaise" INTEGER NOT NULL,
-    "razorpayOrderId" TEXT,
-    "razorpayPaymentId" TEXT,
+    "paymentMethod" TEXT NOT NULL DEFAULT 'UPI',
+    "paymentRef" TEXT NOT NULL DEFAULT '',
     "paidAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL
@@ -117,52 +117,23 @@ const INDEXES = [
   `CREATE INDEX IF NOT EXISTS "Product_categoryId_idx" ON "Product"("categoryId");`,
   `CREATE INDEX IF NOT EXISTS "ProductImage_productId_idx" ON "ProductImage"("productId");`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "Order_orderNumber_key" ON "Order"("orderNumber");`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "Order_razorpayOrderId_key" ON "Order"("razorpayOrderId");`,
   `CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "Order"("status");`,
   `CREATE INDEX IF NOT EXISTS "Order_createdAt_idx" ON "Order"("createdAt");`,
   `CREATE INDEX IF NOT EXISTS "OrderItem_orderId_idx" ON "OrderItem"("orderId");`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "AdminUser_email_key" ON "AdminUser"("email");`,
 ];
 
+// Idempotent column migrations so an already-created database picks up the
+// switch from Razorpay to UPI/COD without needing a full reset.
+const MIGRATIONS = [
+  `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT NOT NULL DEFAULT 'UPI';`,
+  `ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymentRef" TEXT NOT NULL DEFAULT '';`,
+  `ALTER TABLE "Order" DROP COLUMN IF EXISTS "razorpayOrderId";`,
+  `ALTER TABLE "Order" DROP COLUMN IF EXISTS "razorpayPaymentId";`,
+];
+
 const DROP = `DROP TABLE IF EXISTS "OrderItem","Order","ProductImage","Product","Category","AdminUser" CASCADE;
 DROP TYPE IF EXISTS "OrderStatus";`;
-
-// ── Seed data ──────────────────────────────────────────────────────────────
-const CATEGORIES = [
-  { name: "Earrings", slug: "earrings" },
-  { name: "Necklaces & Pendants", slug: "necklaces" },
-  { name: "Rings", slug: "rings" },
-  { name: "Bracelets & Anklets", slug: "bracelets" },
-  { name: "Hair Accessories", slug: "hair" },
-  { name: "Sets & Combos", slug: "sets" },
-];
-
-// A few sample products (no photos — the owner adds real photos in the admin
-// panel). Delete these once real stock is added. Prices are in paise.
-const PRODUCTS = [
-  { name: "Pearl Drop Earrings", cat: "earrings", price: 49900, compare: 69900, stock: 12, featured: true,
-    desc: "Timeless freshwater-style pearl drops that go with everything." },
-  { name: "Tiny Gold Hoops", cat: "earrings", price: 39900, stock: 20, featured: true,
-    desc: "Featherlight everyday hoops with a soft gold finish." },
-  { name: "Layered Heart Necklace", cat: "necklaces", price: 79900, compare: 99900, stock: 8, featured: true,
-    desc: "A dainty double-layer chain with a delicate heart pendant." },
-  { name: "Dainty Initial Pendant", cat: "necklaces", price: 59900, stock: 15,
-    desc: "Personalise your look with a delicate initial pendant." },
-  { name: "Minimal Stacking Ring", cat: "rings", price: 29900, stock: 25, featured: true,
-    desc: "Slim band made to stack — wear one or wear them all." },
-  { name: "Crystal Flower Ring", cat: "rings", price: 44900, stock: 3,
-    desc: "A sweet floral ring with sparkling cubic crystals." },
-  { name: "Beaded Charm Bracelet", cat: "bracelets", price: 54900, stock: 10,
-    desc: "Hand-strung beads with a tiny gold charm." },
-  { name: "Butterfly Anklet", cat: "bracelets", price: 34900, stock: 0,
-    desc: "Delicate anklet with a fluttering butterfly charm." },
-  { name: "Pearl Hair Clip", cat: "hair", price: 24900, stock: 18, featured: true,
-    desc: "Effortlessly chic pearl-studded hair clip." },
-  { name: "Ribbon Scrunchie Set", cat: "hair", price: 19900, compare: 27900, stock: 30,
-    desc: "Soft satin scrunchies in a set of three." },
-  { name: "Everyday Essentials Set", cat: "sets", price: 129900, compare: 159900, stock: 6, featured: true,
-    desc: "A curated set: hoops, a layered necklace and a stacking ring." },
-];
 
 async function run() {
   console.log(`→ Connecting to Neon over HTTPS… (${RESET ? "RESET mode" : "setup"})`);
@@ -176,8 +147,10 @@ async function run() {
   await pool.query(ENUM);
   for (const sql of TABLES) await pool.query(sql);
   for (const sql of INDEXES) await pool.query(sql);
+  for (const sql of MIGRATIONS) await pool.query(sql);
 
-  // Admin user
+  // Admin user — the only thing we seed. Categories and products are added by
+  // the shop owner in /admin, so the store starts completely empty.
   const email = process.env.ADMIN_EMAIL || "mom@example.com";
   const password = process.env.ADMIN_PASSWORD || "change-this-now";
   const name = process.env.ADMIN_NAME || "Shop Owner";
@@ -190,45 +163,8 @@ async function run() {
   );
   console.log(`→ Admin user ready: ${email}`);
 
-  // Categories
-  const catIdBySlug = {};
-  for (let i = 0; i < CATEGORIES.length; i++) {
-    const c = CATEGORIES[i];
-    const { rows } = await pool.query(
-      `INSERT INTO "Category" ("id","name","slug","position")
-       VALUES ($1,$2,$3,$4)
-       ON CONFLICT ("slug") DO UPDATE SET "name" = EXCLUDED."name", "position" = EXCLUDED."position"
-       RETURNING "id"`,
-      [randomUUID(), c.name, c.slug, i],
-    );
-    catIdBySlug[c.slug] = rows[0].id;
-  }
-  console.log(`→ ${CATEGORIES.length} categories ready`);
-
-  // Sample products
-  for (const p of PRODUCTS) {
-    const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    await pool.query(
-      `INSERT INTO "Product"
-        ("id","name","slug","description","pricePaise","comparePaise","stock","isFeatured","categoryId","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, CURRENT_TIMESTAMP)
-       ON CONFLICT ("slug") DO UPDATE SET
-         "pricePaise" = EXCLUDED."pricePaise",
-         "comparePaise" = EXCLUDED."comparePaise",
-         "stock" = EXCLUDED."stock",
-         "isFeatured" = EXCLUDED."isFeatured",
-         "categoryId" = EXCLUDED."categoryId",
-         "updatedAt" = CURRENT_TIMESTAMP`,
-      [
-        randomUUID(), p.name, slug, p.desc, p.price, p.compare ?? null,
-        p.stock, Boolean(p.featured), catIdBySlug[p.cat],
-      ],
-    );
-  }
-  console.log(`→ ${PRODUCTS.length} sample products ready (no photos — add them in /admin)`);
-
   await pool.end();
-  console.log("✓ Database setup complete.");
+  console.log("✓ Database setup complete. Add categories & products in /admin.");
 }
 
 run().catch((err) => {

@@ -21,24 +21,22 @@ export default async function OrderPage({
   });
   if (!order) notFound();
 
-  const paid = order.status !== "PENDING" && order.status !== "CANCELLED";
+  const { emoji, title, message } = confirmationCopy(
+    order.status,
+    order.paymentMethod,
+    formatPaise(order.totalPaise),
+  );
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <div className="text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blush text-3xl">
-          {paid ? "💝" : "⏳"}
+          {emoji}
         </div>
-        <h1 className="mt-4 font-display text-4xl text-brand-dark">
-          {paid ? "Thank you!" : "Almost there…"}
-        </h1>
-        <p className="mt-2 text-muted">
-          {paid
-            ? "Your order is confirmed. We've emailed you the details and we're packing it with love."
-            : "We haven't received payment for this order yet. If you were charged, it will update shortly."}
-        </p>
+        <h1 className="mt-4 font-display text-4xl text-brand-dark">{title}</h1>
+        <p className="mt-2 text-muted">{message}</p>
         <p className="mt-4 inline-block rounded-full bg-blush px-4 py-1.5 text-sm font-medium text-brand-dark">
-          Order {order.orderNumber} · {statusLabel(order.status)}
+          Order {order.orderNumber} · {statusLabel(order.status, order.paymentMethod)}
         </p>
       </div>
 
@@ -100,9 +98,11 @@ export default async function OrderPage({
   );
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, paymentMethod: string): string {
+  if (status === "PENDING") {
+    return paymentMethod === "COD" ? "Order placed" : "Verifying payment";
+  }
   const map: Record<string, string> = {
-    PENDING: "Awaiting payment",
     PAID: "Confirmed",
     PROCESSING: "Being packed",
     SHIPPED: "Shipped",
@@ -111,4 +111,40 @@ function statusLabel(status: string): string {
     REFUNDED: "Refunded",
   };
   return map[status] ?? status;
+}
+
+function confirmationCopy(
+  status: string,
+  paymentMethod: string,
+  total: string,
+): { emoji: string; title: string; message: string } {
+  if (status === "CANCELLED") {
+    return {
+      emoji: "✖️",
+      title: "Order cancelled",
+      message:
+        "This order has been cancelled. If that's a surprise, please get in touch and we'll help.",
+    };
+  }
+  if (status === "PENDING") {
+    if (paymentMethod === "COD") {
+      return {
+        emoji: "💝",
+        title: "Order placed!",
+        message: `Thank you! We've emailed your order details. Please keep ${total} ready in cash for when your parcel arrives.`,
+      };
+    }
+    return {
+      emoji: "⏳",
+      title: "Almost there…",
+      message:
+        "Thanks for paying via UPI! We're verifying that it landed in our account and we'll email you the moment it's confirmed.",
+    };
+  }
+  return {
+    emoji: "💝",
+    title: "Thank you!",
+    message:
+      "Your order is confirmed. We've emailed you the details and we're packing it with love.",
+  };
 }

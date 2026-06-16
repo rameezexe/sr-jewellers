@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
   verifyPassword,
+  hashPassword,
   createSession,
   destroySession,
   requireAdmin,
@@ -13,6 +14,7 @@ import {
 import { rupeesToPaise } from "@/lib/money";
 import { slugify } from "@/lib/utils";
 import { deleteImage } from "@/lib/cloudinary";
+import { applyStatusChange } from "@/lib/orders";
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 export type LoginState = { error?: string };
@@ -207,10 +209,121 @@ export async function updateOrderStatusAction(orderId: string, status: string) {
   if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
     throw new Error("Invalid status.");
   }
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: status as (typeof STATUSES)[number] },
-  });
+  // Keeps stock + paidAt consistent (returns/re-reserves items on cancel).
+  await applyStatusChange(orderId, status as (typeof STATUSES)[number]);
   revalidatePath("/admin/orders");
   revalidatePath(`/admin/orders/${orderId}`);
+}
+
+// ── Categories ─────────────────────────────────────────────────────────────
+/** Build a category slug that isn't already taken (optionally ignoring one id). */
+async function uniqueCategorySlug(base: string, ignoreId?: string): Promise<string> {
+  const root = slugify(base) || "category";
+  let slug = root;
+  let n = 1;
+  while (true) {
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    if (!existing || existing.id === ignoreId) return slug;
+    n += 1;
+    slug = `${root}-${n}`;
+  }
+}
+
+export async function createCategoryAction(formData: FormData) {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) throw new Error("Category name is required.");
+  const slug = await uniqueCategorySlug(name);
+  const max = await prisma.category.aggregate({ _max: { position: true } });
+  await prisma.category.create({
+    data: { name, slug, position: (max._max.position ?? -1) + 1 },
+  });
+  revalidatePath("/admin/categories");
+  revalidatePath("/shop");
+}
+
+export async function updateCategoryAction(categoryId: string, formData: FormData) {
+  await requireAdmin();
+  const existing = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!existing) throw new Error("Category not found.");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) throw new Error("Category name is required.");
+  const slugInput = String(formData.get("slug") ?? "").trim();
+  const slug = slugInput
+    ? await uniqueCategorySlug(slugInput, categoryId)
+    : existing.slug;
+  const isActive = formData.get("isActive") != null;
+
+  await prisma.category.update({
+    where: { id: categoryId },
+    data: { name, slug, isActive },
+  });
+  revalidatePath("/admin/categories");
+  revalidatePath("/shop");
+}
+
+export async function deleteCategoryAction(categoryId: string) {
+  await requireAdmin();
+  // Products keep existing — their categoryId is set null by the FK rule.
+  await prisma.category.delete({ where: { id: categoryId } });
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/products");
+  revalidatePath("/shop");
+}
+
+// ── Account settings ───────────────────────────────────────────────────────
+export type AccountState = { error?: string; success?: string };
+
+const emailRe = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export async function updateAccountAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const session = await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!emailRe.test(email)) return { error: "Enter a valid email address." };
+
+  const clash = await prisma.adminUser.findUnique({ where: { email } });
+  if (clash && clash.id !== session.adminId) {
+    return { error: "That email is already in use." };
+  }
+
+  await prisma.adminUser.update({
+    where: { id: session.adminId },
+    data: { name, email },
+  });
+  // Refresh the session cookie so it carries the new email.
+  await createSession({ adminId: session.adminId, email });
+  revalidatePath("/admin/settings");
+  return { success: "Account details saved." };
+}
+
+export async function changePasswordAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const session = await requireAdmin();
+  const current = String(formData.get("currentPassword") ?? "");
+  const next = String(formData.get("newPassword") ?? "");
+  const confirm = String(formData.get("confirmPassword") ?? "");
+
+  if (next.length < 8) {
+    return { error: "New password must be at least 8 characters." };
+  }
+  if (next !== confirm) return { error: "New passwords don't match." };
+
+  const admin = await prisma.adminUser.findUnique({
+    where: { id: session.adminId },
+  });
+  if (!admin || !(await verifyPassword(current, admin.passwordHash))) {
+    return { error: "Your current password is incorrect." };
+  }
+
+  await prisma.adminUser.update({
+    where: { id: session.adminId },
+    data: { passwordHash: await hashPassword(next) },
+  });
+  return { success: "Password changed." };
 }
