@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import {
   updateAccountAction,
   changePasswordAction,
+  updateShippingAction,
   type AccountState,
 } from "@/app/admin/actions";
 
@@ -51,6 +52,60 @@ export function AccountForm({ name, email }: { name: string; email: string }) {
         className="rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-60"
       >
         {pending ? "Saving…" : "Save changes"}
+      </button>
+    </form>
+  );
+}
+
+export function ShippingForm({
+  freeThresholdRupees,
+  flatRupees,
+}: {
+  freeThresholdRupees: number;
+  flatRupees: number;
+}) {
+  const [state, action, pending] = useActionState(updateShippingAction, initial);
+
+  return (
+    <form action={action} className="space-y-4">
+      <label className="block">
+        <span className={labelText}>Free shipping above (₹)</span>
+        <input
+          name="freeThresholdRupees"
+          type="number"
+          min="0"
+          step="1"
+          required
+          defaultValue={freeThresholdRupees}
+          className={input}
+        />
+        <span className="mt-1 block text-xs text-muted">
+          Orders at or above this amount ship free. Set to 0 to make every order
+          free.
+        </span>
+      </label>
+      <label className="block">
+        <span className={labelText}>Flat shipping fee (₹)</span>
+        <input
+          name="flatRupees"
+          type="number"
+          min="0"
+          step="1"
+          required
+          defaultValue={flatRupees}
+          className={input}
+        />
+        <span className="mt-1 block text-xs text-muted">
+          Charged on orders below the free-shipping amount.
+        </span>
+      </label>
+      <Notice state={state} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-60"
+      >
+        {pending ? "Saving…" : "Save shipping"}
       </button>
     </form>
   );

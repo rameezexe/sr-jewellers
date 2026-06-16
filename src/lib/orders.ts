@@ -2,8 +2,9 @@ import "server-only";
 import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateOrderNumber } from "@/lib/utils";
-import { shippingForSubtotal } from "@/lib/money";
-import { sendOrderEmails } from "@/lib/email";
+import { computeShipping } from "@/lib/money";
+import { getShopSettings } from "@/lib/settings";
+import { sendOrderEmails, sendStatusUpdateEmail } from "@/lib/email";
 import type { PaymentMethod } from "@/lib/payments";
 
 /**
@@ -70,6 +71,7 @@ export async function createPendingOrder(
 ) {
   if (items.length === 0) throw new Error("Your cart is empty.");
   const ids = items.map((i) => i.productId);
+  const settings = await getShopSettings();
 
   const order = await prisma.$transaction(async (tx) => {
     const products = await tx.product.findMany({
@@ -99,7 +101,11 @@ export async function createPendingOrder(
       };
     });
 
-    const shippingPaise = shippingForSubtotal(subtotalPaise);
+    const shippingPaise = computeShipping(
+      subtotalPaise,
+      settings.freeShippingThresholdPaise,
+      settings.flatShippingPaise,
+    );
     const totalPaise = subtotalPaise + shippingPaise;
 
     const created = await tx.order.create({
@@ -172,20 +178,20 @@ export async function attachUpiReference(orderNumber: string, reference: string)
  * them if it's reactivated. Stamps paidAt the first time it's marked PAID.
  */
 export async function applyStatusChange(orderId: string, newStatus: OrderStatus) {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
+  const { order, changed } = await prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findUnique({
       where: { id: orderId },
       include: { items: true },
     });
-    if (!order) return null;
-    if (order.status === newStatus) return order;
+    if (!existing) return { order: null, changed: false };
+    if (existing.status === newStatus) return { order: existing, changed: false };
 
-    const wasReleased = RELEASED.has(order.status);
+    const wasReleased = RELEASED.has(existing.status);
     const willRelease = RELEASED.has(newStatus);
     const stockDelta = !wasReleased && willRelease ? 1 : wasReleased && !willRelease ? -1 : 0;
 
     if (stockDelta !== 0) {
-      for (const item of order.items) {
+      for (const item of existing.items) {
         if (item.productId) {
           await tx.product.update({
             where: { id: item.productId },
@@ -195,10 +201,24 @@ export async function applyStatusChange(orderId: string, newStatus: OrderStatus)
       }
     }
 
-    const paidAt = newStatus === "PAID" && !order.paidAt ? new Date() : order.paidAt;
-    return tx.order.update({
+    const paidAt =
+      newStatus === "PAID" && !existing.paidAt ? new Date() : existing.paidAt;
+    const updated = await tx.order.update({
       where: { id: orderId },
       data: { status: newStatus, paidAt },
     });
+    return { order: updated, changed: true };
   });
+
+  // Notify the customer of the new status (outside the transaction).
+  if (order && changed) {
+    await sendStatusUpdateEmail({
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      email: order.email,
+      status: order.status,
+      totalPaise: order.totalPaise,
+    });
+  }
+  return order;
 }

@@ -17,6 +17,17 @@ function emailConfigured(): boolean {
   return Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 }
 
+function gmailTransport() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.GMAIL_USER!, pass: process.env.GMAIL_APP_PASSWORD },
+  });
+}
+
+function fromAddress(): string {
+  return process.env.EMAIL_FROM || `${SITE.name} <${process.env.GMAIL_USER}>`;
+}
+
 type OrderForEmail = {
   orderNumber: string;
   customerName: string;
@@ -112,14 +123,9 @@ export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
     return;
   }
 
-  const gmailUser = process.env.GMAIL_USER!;
-  const from = process.env.EMAIL_FROM || `${SITE.name} <${gmailUser}>`;
-  const ownerEmail = process.env.OWNER_EMAIL || gmailUser;
-
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: gmailUser, pass: process.env.GMAIL_APP_PASSWORD },
-  });
+  const from = fromAddress();
+  const ownerEmail = process.env.OWNER_EMAIL || process.env.GMAIL_USER!;
+  const transporter = gmailTransport();
 
   // Customer confirmation
   const customerHtml = shell(
@@ -160,5 +166,82 @@ export async function sendOrderEmails(order: OrderForEmail): Promise<void> {
   } catch (err) {
     // Never let an email failure break the order flow.
     console.error("[email] send failed for", order.orderNumber, err);
+  }
+}
+
+// ── Status update emails (sent to the customer when the owner changes status) ─
+type StatusEmailOrder = {
+  orderNumber: string;
+  customerName: string;
+  email: string;
+  status: string;
+  totalPaise: number;
+};
+
+// Only these statuses notify the customer. PENDING/PROCESSING are internal.
+const STATUS_EMAIL: Record<
+  string,
+  { subject: string; heading: string; body: string }
+> = {
+  PAID: {
+    subject: "Payment received",
+    heading: "Payment received 💕",
+    body: "We've confirmed your payment. Your order is now being prepared — we'll email you again as soon as it ships.",
+  },
+  SHIPPED: {
+    subject: "Your order has shipped",
+    heading: "Your order is on its way! 📦",
+    body: "Great news — your order has been shipped and should reach you within 3–5 working days.",
+  },
+  DELIVERED: {
+    subject: "Your order was delivered",
+    heading: "Delivered! 🎁",
+    body: "Your order has been delivered. We hope you love it! If anything isn't right, just reply to this email.",
+  },
+  CANCELLED: {
+    subject: "Your order was cancelled",
+    heading: "Order cancelled",
+    body: "Your order has been cancelled. If this was unexpected or you have any questions, please reply and we'll help.",
+  },
+  REFUNDED: {
+    subject: "Refund issued",
+    heading: "Refund issued",
+    body: "We've issued a refund for your order. It may take a few working days to reflect in your account.",
+  },
+};
+
+/** Returns true if a given status sends a customer email. */
+export function statusNotifiesCustomer(status: string): boolean {
+  return status in STATUS_EMAIL;
+}
+
+export async function sendStatusUpdateEmail(order: StatusEmailOrder): Promise<void> {
+  const copy = STATUS_EMAIL[order.status];
+  if (!copy) return; // nothing to send for this status
+  if (!emailConfigured()) {
+    console.warn(
+      "[email] Gmail not configured — skipping status email for",
+      order.orderNumber,
+    );
+    return;
+  }
+
+  const html = shell(
+    `Hi ${order.customerName.split(" ")[0]} — ${copy.heading}`,
+    `<p>${copy.body}</p>
+     <p style="font-size:14px;">Order <strong>${order.orderNumber}</strong> · Total ${formatPaise(
+       order.totalPaise,
+     )}</p>`,
+  );
+
+  try {
+    await gmailTransport().sendMail({
+      from: fromAddress(),
+      to: order.email,
+      subject: `${copy.subject} — ${order.orderNumber}`,
+      html,
+    });
+  } catch (err) {
+    console.error("[email] status email failed for", order.orderNumber, err);
   }
 }

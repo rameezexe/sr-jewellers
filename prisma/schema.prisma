@@ -106,6 +106,14 @@ model AdminUser {
   createdAt    DateTime @default(now())
 }
 
+// Single-row table (id = "shop") holding owner-editable shop settings.
+model ShopSettings {
+  id                         String   @id @default("shop")
+  freeShippingThresholdPaise Int      @default(99900) // free shipping at/above this
+  flatShippingPaise          Int      @default(6900) // flat fee below the threshold
+  updatedAt                  DateTime @updatedAt
+}
+
 enum OrderStatus {
   PENDING // created, awaiting payment
   PAID // payment captured

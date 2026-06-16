@@ -26,9 +26,28 @@ export function paiseToRupees(paise: number): number {
   return paise / 100;
 }
 
-/** Shipping fee for a given subtotal, per the rules in site config. */
-export function shippingForSubtotal(subtotalPaise: number): number {
+/** Owner-editable shipping settings (stored in the DB, see lib/settings.ts). */
+export type ShopSettings = {
+  freeShippingThresholdPaise: number;
+  flatShippingPaise: number;
+};
+
+/** Shipping fee for a subtotal given explicit thresholds (free at/above). */
+export function computeShipping(
+  subtotalPaise: number,
+  freeThresholdPaise: number,
+  flatPaise: number,
+): number {
   if (subtotalPaise <= 0) return 0;
-  if (subtotalPaise >= SITE.freeShippingThresholdPaise) return 0;
-  return SITE.flatShippingPaise;
+  if (subtotalPaise >= freeThresholdPaise) return 0;
+  return flatPaise;
+}
+
+/** Shipping fee using the static defaults in site config (fallback). */
+export function shippingForSubtotal(subtotalPaise: number): number {
+  return computeShipping(
+    subtotalPaise,
+    SITE.freeShippingThresholdPaise,
+    SITE.flatShippingPaise,
+  );
 }

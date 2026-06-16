@@ -4,11 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/components/cart-context";
-import { formatPaise, shippingForSubtotal } from "@/lib/money";
+import { useShopSettings } from "@/components/shop-settings-context";
+import { formatPaise, computeShipping } from "@/lib/money";
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, subtotalPaise } = useCart();
-  const shipping = shippingForSubtotal(subtotalPaise);
+  const { freeShippingThresholdPaise, flatShippingPaise } = useShopSettings();
+  const shipping = computeShipping(
+    subtotalPaise,
+    freeShippingThresholdPaise,
+    flatShippingPaise,
+  );
 
   if (items.length === 0) {
     return (

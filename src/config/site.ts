@@ -13,13 +13,14 @@ export const SITE = {
     "Hand-picked Korean-style jewellery — earrings, necklaces, rings and more. Shipped across India with love.",
 
   /** Customer-facing contact details (shown in footer + policies). */
-  email: "hello@seoulsparkle.in",
-  phone: "+91 98765 43210",
-  whatsapp: "919876543210", // digits only, country code first
+  email: "srashaikh91@gmail.com",
+  phone: "+91 91676 08665",
+  whatsapp: "919167608665", // digits only, country code first
 
   /** Social links — leave blank ("") to hide an icon. */
-  instagram: "https://instagram.com/",
-  facebook: "https://facebook.com/marketplace/",
+  instagram: "https://instagram.com/s_r.jewellery",
+  facebook:
+    "https://www.facebook.com/marketplace/profile/100001490865731/?ref=permalink&mibextid=dXMIcH",
 
   /** Money. Everything internally is stored in paise (₹1 = 100 paise). */
   currency: "INR",

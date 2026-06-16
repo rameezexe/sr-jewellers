@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useCart } from "@/components/cart-context";
-import { formatPaise, shippingForSubtotal } from "@/lib/money";
+import { useShopSettings } from "@/components/shop-settings-context";
+import { formatPaise, computeShipping } from "@/lib/money";
 import { INDIAN_STATES } from "@/lib/states";
 
 type PaymentMethod = "UPI" | "COD";
@@ -39,7 +40,12 @@ export function CheckoutClient({ upiEnabled }: { upiEnabled: boolean }) {
     notes: "",
   });
 
-  const shipping = shippingForSubtotal(subtotalPaise);
+  const { freeShippingThresholdPaise, flatShippingPaise } = useShopSettings();
+  const shipping = computeShipping(
+    subtotalPaise,
+    freeShippingThresholdPaise,
+    flatShippingPaise,
+  );
   const total = subtotalPaise + shipping;
 
   function update(field: keyof typeof form) {

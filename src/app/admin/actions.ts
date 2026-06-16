@@ -15,6 +15,7 @@ import { rupeesToPaise } from "@/lib/money";
 import { slugify } from "@/lib/utils";
 import { deleteImage } from "@/lib/cloudinary";
 import { applyStatusChange } from "@/lib/orders";
+import { updateShippingSettings } from "@/lib/settings";
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 export type LoginState = { error?: string };
@@ -326,4 +327,31 @@ export async function changePasswordAction(
     data: { passwordHash: await hashPassword(next) },
   });
   return { success: "Password changed." };
+}
+
+// ── Shipping settings ──────────────────────────────────────────────────────
+export async function updateShippingAction(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  await requireAdmin();
+  const freeRupees = Number(formData.get("freeThresholdRupees"));
+  const flatRupees = Number(formData.get("flatRupees"));
+  if (!Number.isFinite(freeRupees) || freeRupees < 0) {
+    return { error: "Enter a valid free-shipping amount (0 or more)." };
+  }
+  if (!Number.isFinite(flatRupees) || flatRupees < 0) {
+    return { error: "Enter a valid shipping fee (0 or more)." };
+  }
+
+  await updateShippingSettings({
+    freeShippingThresholdPaise: rupeesToPaise(freeRupees),
+    flatShippingPaise: rupeesToPaise(flatRupees),
+  });
+  // Storefront pages that show shipping need to reflect the new numbers.
+  revalidatePath("/admin/settings");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+  revalidatePath("/policies/shipping");
+  return { success: "Shipping settings saved." };
 }

@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { PolicyShell } from "@/components/policy-shell";
 import { SITE } from "@/config/site";
 import { formatPaise } from "@/lib/money";
+import { getShopSettings } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Shipping Policy" };
 
-export default function ShippingPolicy() {
+export default async function ShippingPolicy() {
+  const { freeShippingThresholdPaise, flatShippingPaise } = await getShopSettings();
   return (
     <PolicyShell title="Shipping Policy">
       <p>
@@ -15,10 +17,18 @@ export default function ShippingPolicy() {
       </p>
       <h2>Shipping charges</h2>
       <p>
-        A flat shipping fee of {formatPaise(SITE.flatShippingPaise)} applies to
-        orders below {formatPaise(SITE.freeShippingThresholdPaise)}. Orders at or
-        above {formatPaise(SITE.freeShippingThresholdPaise)} ship{" "}
-        <strong>free</strong>.
+        {freeShippingThresholdPaise <= 0 ? (
+          <>
+            Shipping is <strong>free</strong> on all orders.
+          </>
+        ) : (
+          <>
+            A flat shipping fee of {formatPaise(flatShippingPaise)} applies to
+            orders below {formatPaise(freeShippingThresholdPaise)}. Orders at or
+            above {formatPaise(freeShippingThresholdPaise)} ship{" "}
+            <strong>free</strong>.
+          </>
+        )}
       </p>
       <h2>Tracking</h2>
       <p>

@@ -1,22 +1,43 @@
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { AccountForm, PasswordForm } from "@/components/admin/settings-forms";
+import {
+  AccountForm,
+  PasswordForm,
+  ShippingForm,
+} from "@/components/admin/settings-forms";
+import { getShopSettings } from "@/lib/settings";
+import { paiseToRupees } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage() {
   const session = await requireAdmin();
-  const admin = await prisma.adminUser.findUnique({
-    where: { id: session.adminId },
-  });
+  const [admin, shipping] = await Promise.all([
+    prisma.adminUser.findUnique({ where: { id: session.adminId } }),
+    getShopSettings(),
+  ]);
 
   return (
     <div>
       <h1 className="font-display text-3xl text-brand-dark">Settings</h1>
       <p className="mt-1 text-sm text-muted">
-        Manage your login. Shop-wide details (name, contact, UPI ID, shipping)
-        live in the project files — ask whoever set up the site to change those.
+        Manage your login and shipping charges. Other shop-wide details (name,
+        contact, UPI ID) live in the project files.
       </p>
+
+      <section className="mt-6 rounded-xl border border-blush-deep/60 bg-white p-6">
+        <h2 className="font-display text-xl text-ink">Shipping charges</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          Set when customers pay for shipping. Changes apply to new orders right
+          away.
+        </p>
+        <div className="max-w-md">
+          <ShippingForm
+            freeThresholdRupees={paiseToRupees(shipping.freeShippingThresholdPaise)}
+            flatRupees={paiseToRupees(shipping.flatShippingPaise)}
+          />
+        </div>
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-blush-deep/60 bg-white p-6">

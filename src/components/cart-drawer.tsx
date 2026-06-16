@@ -4,15 +4,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { X, Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/components/cart-context";
-import { formatPaise, shippingForSubtotal } from "@/lib/money";
-import { SITE } from "@/config/site";
+import { useShopSettings } from "@/components/shop-settings-context";
+import { formatPaise, computeShipping } from "@/lib/money";
 
 export function CartDrawer() {
   const { items, isOpen, setOpen, updateQuantity, removeItem, subtotalPaise } =
     useCart();
+  const { freeShippingThresholdPaise, flatShippingPaise } = useShopSettings();
 
-  const shipping = shippingForSubtotal(subtotalPaise);
-  const remainingForFree = SITE.freeShippingThresholdPaise - subtotalPaise;
+  const shipping = computeShipping(
+    subtotalPaise,
+    freeShippingThresholdPaise,
+    flatShippingPaise,
+  );
+  const remainingForFree = freeShippingThresholdPaise - subtotalPaise;
 
   return (
     <>

@@ -15,7 +15,17 @@ export default async function AdminOrdersPage() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl text-brand-dark">Orders</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="font-display text-3xl text-brand-dark">Orders</h1>
+        {orders.length > 0 && (
+          <a
+            href="/api/admin/orders/export"
+            className="rounded-full border border-brand px-5 py-2 text-sm font-semibold text-brand hover:bg-brand hover:text-white"
+          >
+            ⬇ Export to Excel
+          </a>
+        )}
+      </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-blush-deep/60 bg-white">
         {orders.length === 0 ? (

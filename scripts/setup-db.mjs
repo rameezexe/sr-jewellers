@@ -109,6 +109,12 @@ const TABLES = [
     "name" TEXT NOT NULL DEFAULT '',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   );`,
+  `CREATE TABLE IF NOT EXISTS "ShopSettings" (
+    "id" TEXT PRIMARY KEY,
+    "freeShippingThresholdPaise" INTEGER NOT NULL DEFAULT 99900,
+    "flatShippingPaise" INTEGER NOT NULL DEFAULT 6900,
+    "updatedAt" TIMESTAMP(3) NOT NULL
+  );`,
 ];
 
 const INDEXES = [
@@ -132,7 +138,7 @@ const MIGRATIONS = [
   `ALTER TABLE "Order" DROP COLUMN IF EXISTS "razorpayPaymentId";`,
 ];
 
-const DROP = `DROP TABLE IF EXISTS "OrderItem","Order","ProductImage","Product","Category","AdminUser" CASCADE;
+const DROP = `DROP TABLE IF EXISTS "OrderItem","Order","ProductImage","Product","Category","AdminUser","ShopSettings" CASCADE;
 DROP TYPE IF EXISTS "OrderStatus";`;
 
 async function run() {
@@ -149,19 +155,34 @@ async function run() {
   for (const sql of INDEXES) await pool.query(sql);
   for (const sql of MIGRATIONS) await pool.query(sql);
 
-  // Admin user — the only thing we seed. Categories and products are added by
-  // the shop owner in /admin, so the store starts completely empty.
-  const email = process.env.ADMIN_EMAIL || "mom@example.com";
-  const password = process.env.ADMIN_PASSWORD || "change-this-now";
-  const name = process.env.ADMIN_NAME || "Shop Owner";
-  const hash = await bcrypt.hash(password, 12);
-  await pool.query(
-    `INSERT INTO "AdminUser" ("id","email","passwordHash","name")
-     VALUES ($1,$2,$3,$4)
-     ON CONFLICT ("email") DO UPDATE SET "passwordHash" = EXCLUDED."passwordHash", "name" = EXCLUDED."name"`,
-    [randomUUID(), email, hash, name],
+  // Admin user — seeded ONLY when no admin exists yet, so re-running setup never
+  // overwrites a password the owner has changed (or creates a duplicate admin).
+  // db:reset drops the table first, so it always seeds a fresh one from .env.
+  const { rows: adminRows } = await pool.query(
+    `SELECT count(*)::int AS n FROM "AdminUser"`,
   );
-  console.log(`→ Admin user ready: ${email}`);
+  if (adminRows[0].n === 0) {
+    const email = process.env.ADMIN_EMAIL || "mom@example.com";
+    const password = process.env.ADMIN_PASSWORD || "change-this-now";
+    const name = process.env.ADMIN_NAME || "Shop Owner";
+    const hash = await bcrypt.hash(password, 12);
+    await pool.query(
+      `INSERT INTO "AdminUser" ("id","email","passwordHash","name") VALUES ($1,$2,$3,$4)`,
+      [randomUUID(), email, hash, name],
+    );
+    console.log(`→ Admin user created: ${email}`);
+  } else {
+    console.log("→ Admin user already exists — left untouched");
+  }
+
+  // Shop settings — one row, owner-editable in /admin/settings. Defaults match
+  // src/config/site.ts. ON CONFLICT keeps any values the owner already set.
+  await pool.query(
+    `INSERT INTO "ShopSettings" ("id","freeShippingThresholdPaise","flatShippingPaise","updatedAt")
+     VALUES ('shop', 99900, 6900, CURRENT_TIMESTAMP)
+     ON CONFLICT ("id") DO NOTHING`,
+  );
+  console.log("→ Shop settings ready");
 
   await pool.end();
   console.log("✓ Database setup complete. Add categories & products in /admin.");
